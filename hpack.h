@@ -2,7 +2,17 @@
 #define HPACK_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <stddef.h>
+
+
+/**
+ * @brief Call this before other functions.
+ *
+ * If @dynamic_share=true, dynamic entries will be shared amount all hpacks,
+ * which saves memory while costs a little more CPU.
+ */
+void hpack_library_init(bool dynamic_share);
 
 /**
  * @brief The hpack context for dynamic encoding or decoding.
