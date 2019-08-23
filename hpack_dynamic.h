@@ -1,14 +1,17 @@
 #ifndef HPACK_DYNAMIC_H
 #define HPACK_DYNAMIC_H
 
-#include <stdint.h>
+#include <stdbool.h>
 
-int hpack_dynamic_table_size_adjust(struct hpack *hpack, int length);
+#include "hpack.h"
 
-int hpack_dynamic_entry_add(struct hpack *hpack,
-		const char *name_str, int name_len,
+int hpack_dynamic_add(hpack_t *hpack, const char *name_str, int name_len,
 		const char *value_str, int value_len);
 
-struct hpack_dynamic_entry *hpack_dynamic_entry_get(
-		struct hpack *hpack, int index);
+bool hpack_dynamic_decode(hpack_t *hpack, int index,
+		const char **name_str, int *name_len,
+		const char **value_str, int *value_len);
+
+void hpack_dynamic_init(bool shared);
+
 #endif

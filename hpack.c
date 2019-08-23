@@ -1,14 +1,12 @@
-#include <stdlib.h>
+#include "hpack_static.h"
+#include "hpack_dynamic.h"
+
 #include "hpack.h"
 
-void hpack_init(struct hpack *hpack)
+void hpack_library_init(bool dynamic_share)
 {
-	hpack->buf_max = 4096; /* RFC7540 section 6.5.2 */
-	hpack->buf_used = 0;
-
-	hpack->index_used = 0;
-	hpack->index_size = 0;
-	hpack->indexs = NULL;
+	hpack_static_init();
+	hpack_dynamic_init(dynamic_share);
 }
 
 const char *hpack_strerror(int errcode)
@@ -18,6 +16,8 @@ const char *hpack_strerror(int errcode)
 		return "not enough memory";
 	case HPERR_AGAIN:
 		return "not enough input";
+	case HPERR_NO_SPACE:
+		return "not enough output";
 	case HPERR_DECODE_INT:
 		return "invalid decode int";
 	case HPERR_HUFFMAN:

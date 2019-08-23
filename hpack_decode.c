@@ -1,94 +1,12 @@
 #include <stdio.h>
 #include <string.h>
+
 #include "hpack.h"
 #include "huffman.h"
+#include "hpack_static.h"
 #include "hpack_dynamic.h"
 
-#define HPACK_STATIC_TABLE_SIZE (sizeof(hpack_static_table) / sizeof(struct hpack_static_entry))
-struct hpack_static_entry {
-	const char	*name_str;
-	const char	*value_str;
-	int		name_len;
-	int		value_len;
-};
-
-#define STATIC_TABLE_ENTRY(name, value)	{name, value, sizeof(name)-1, sizeof(value)-1}
-static struct hpack_static_entry hpack_static_table[] = {
-	STATIC_TABLE_ENTRY("", ""),
-	STATIC_TABLE_ENTRY(":authority", ""),
-	STATIC_TABLE_ENTRY(":method", "GET"),
-	STATIC_TABLE_ENTRY(":method", "POST"),
-	STATIC_TABLE_ENTRY(":path", "/"),
-	STATIC_TABLE_ENTRY(":path", "/index.html"),
-	STATIC_TABLE_ENTRY(":scheme", "http"),
-	STATIC_TABLE_ENTRY(":scheme", "https"),
-	STATIC_TABLE_ENTRY(":status", "200"),
-	STATIC_TABLE_ENTRY(":status", "204"),
-	STATIC_TABLE_ENTRY(":status", "206"),
-	STATIC_TABLE_ENTRY(":status", "304"),
-	STATIC_TABLE_ENTRY(":status", "400"),
-	STATIC_TABLE_ENTRY(":status", "404"),
-	STATIC_TABLE_ENTRY(":status", "500"),
-	STATIC_TABLE_ENTRY("accept-charset", ""),
-	STATIC_TABLE_ENTRY("accept-encoding", "gzip, deflate"),
-	STATIC_TABLE_ENTRY("accept-language", ""),
-	STATIC_TABLE_ENTRY("accept-ranges", ""),
-	STATIC_TABLE_ENTRY("accept", ""),
-	STATIC_TABLE_ENTRY("access-control-allow-origin", ""),
-	STATIC_TABLE_ENTRY("age", ""),
-	STATIC_TABLE_ENTRY("allow", ""),
-	STATIC_TABLE_ENTRY("authorization", ""),
-	STATIC_TABLE_ENTRY("cache-control", ""),
-	STATIC_TABLE_ENTRY("content-disposition", ""),
-	STATIC_TABLE_ENTRY("content-encoding", ""),
-	STATIC_TABLE_ENTRY("content-language", ""),
-	STATIC_TABLE_ENTRY("content-length", ""),
-	STATIC_TABLE_ENTRY("content-location", ""),
-	STATIC_TABLE_ENTRY("content-range", ""),
-	STATIC_TABLE_ENTRY("content-type", ""),
-	STATIC_TABLE_ENTRY("cookie", ""),
-	STATIC_TABLE_ENTRY("date", ""),
-	STATIC_TABLE_ENTRY("etag", ""),
-	STATIC_TABLE_ENTRY("expect", ""),
-	STATIC_TABLE_ENTRY("expires", ""),
-	STATIC_TABLE_ENTRY("from", ""),
-	STATIC_TABLE_ENTRY("host", ""),
-	STATIC_TABLE_ENTRY("if-match", ""),
-	STATIC_TABLE_ENTRY("if-modified-since", ""),
-	STATIC_TABLE_ENTRY("if-none-match", ""),
-	STATIC_TABLE_ENTRY("if-range", ""),
-	STATIC_TABLE_ENTRY("if-unmodified-since", ""),
-	STATIC_TABLE_ENTRY("last-modified", ""),
-	STATIC_TABLE_ENTRY("link", ""),
-	STATIC_TABLE_ENTRY("location", ""),
-	STATIC_TABLE_ENTRY("max-forwards", ""),
-	STATIC_TABLE_ENTRY("proxy-authenticate", ""),
-	STATIC_TABLE_ENTRY("proxy-authorization", ""),
-	STATIC_TABLE_ENTRY("range", ""),
-	STATIC_TABLE_ENTRY("referer", ""),
-	STATIC_TABLE_ENTRY("refresh", ""),
-	STATIC_TABLE_ENTRY("retry-after", ""),
-	STATIC_TABLE_ENTRY("server", ""),
-	STATIC_TABLE_ENTRY("set-cookie", ""),
-	STATIC_TABLE_ENTRY("strict-transport-security", ""),
-	STATIC_TABLE_ENTRY("transfer-encoding", ""),
-	STATIC_TABLE_ENTRY("user-agent", ""),
-	STATIC_TABLE_ENTRY("vary", ""),
-	STATIC_TABLE_ENTRY("via", ""),
-	STATIC_TABLE_ENTRY("www-authenticate", ""),
-};
-
-
-int hpack_max_size(struct hpack *hpack, int max_size)
-{
-	if (max_size < 0) {
-		return max_size;
-	}
-	hpack->buf_max = max_size;
-	return hpack_dynamic_table_size_adjust(hpack, 0);
-}
-
-static int hpack_get(struct hpack *hpack, int index,
+static int hpack_get(hpack_t *hpack, int index,
 		const char **name_str, int *name_len,
 		const char **value_str, int *value_len)
 {
@@ -96,28 +14,15 @@ static int hpack_get(struct hpack *hpack, int index,
 		return index;
 	}
 
-	if (index < HPACK_STATIC_TABLE_SIZE) {
-		struct hpack_static_entry *se = &hpack_static_table[index];
-		*name_str = se->name_str;
-		*name_len = se->name_len;
-		if (value_str != NULL) {
-			*value_str = se->value_str;
-			*value_len = se->value_len;
-		}
-	} else {
-		struct hpack_dynamic_entry *de = hpack_dynamic_entry_get(hpack, index);
-		if (de == NULL) {
-			return HPERR_INVALID_DYNAMIC_INDEX;
-		}
-		*name_str = de->str;
-		*name_len = de->name_len;
-		if (value_str != NULL) {
-			*value_str = de->str + de->name_len;
-			*value_len = de->value_len;
-		}
+	if (hpack_static_decode(index, name_str, name_len, value_str, value_len)) {
+		return 0;
 	}
 
-	return 0;
+	if (hpack_dynamic_decode(hpack, index, name_str, name_len, value_str, value_len)) {
+		return 0;
+	}
+
+	return HPERR_INVALID_DYNAMIC_INDEX;
 }
 
 static int hpack_decode_int(uint8_t const **in_pos_p, const uint8_t *in_end,
@@ -182,7 +87,7 @@ static int hpack_decode_string(const uint8_t **in_pos_p, const uint8_t *in_end,
 	}
 }
 
-int hpack_decode_header(struct hpack *hpack,
+int hpack_decode_header(hpack_t *hpack,
 		const uint8_t *in_buf, const uint8_t *in_end,
 		const char **name_str, int *name_len,
 		const char **value_str, int *value_len)
@@ -241,7 +146,7 @@ int hpack_decode_header(struct hpack *hpack,
 
 	/* add to dynamic table */
 	if (prefix_bits == 6) {
-		hpack_dynamic_entry_add(hpack, *name_str, *name_len, *value_str, *value_len);
+		hpack_dynamic_add(hpack, *name_str, *name_len, *value_str, *value_len);
 	}
 
 	return in_pos - in_buf;
