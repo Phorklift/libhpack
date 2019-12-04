@@ -71,7 +71,7 @@ int hpack_encode_status(int status, uint8_t *out_buf, uint8_t *out_end);
  *
  * Return encoded buffer length if OK, or negetive error code if fail.
  */
-int hpack_encode_content_length(int content_length, uint8_t *out_buf, uint8_t *out_end);
+int hpack_encode_content_length(size_t content_length, uint8_t *out_buf, uint8_t *out_end);
 
 /**
  * @brief Encode a header.

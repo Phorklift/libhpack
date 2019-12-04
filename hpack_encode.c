@@ -48,7 +48,7 @@ int hpack_encode_status(int status, uint8_t *out_buf, uint8_t *out_end)
 	return 1;
 }
 
-int hpack_encode_content_length(int content_length, uint8_t *out_buf, uint8_t *out_end)
+int hpack_encode_content_length(size_t content_length, uint8_t *out_buf, uint8_t *out_end)
 {
 	if (out_end < out_buf + 3) {
 		return HPERR_NO_SPACE;
@@ -57,7 +57,7 @@ int hpack_encode_content_length(int content_length, uint8_t *out_buf, uint8_t *o
 	out_buf[0] = 0x40 | 28; /* index of content-length */
 
 	int size = out_end - out_buf - 2;
-	int len = snprintf((char *)out_buf + 2, size, "%d", content_length);
+	int len = snprintf((char *)out_buf + 2, size, "%zu", content_length);
 	if (len == size) {
 		return HPERR_NO_SPACE;
 	}
@@ -119,6 +119,8 @@ static void hpack_downcase(char *dest, const char *src, int len)
 	for (i = 0; i < len; i++) {
 		if (src[i] >= 'A' && src[i] <= 'Z') {
 			dest[i] = src[i] | 0x20;
+		} else {
+			dest[i] = src[i];
 		}
 	}
 }
