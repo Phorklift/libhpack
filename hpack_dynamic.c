@@ -1,8 +1,8 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "wuy_dict.h"
-#include "wuy_pool.h"
 
 #include "hpack.h"
 #include "hpack_dynamic.h"
@@ -122,60 +122,16 @@ static void hpack_dynamic_enable_share(void)
 			offsetof(hpack_dynamic_entry_t, hash_node));
 }
 
-/* index memory utils */
-
-#define HPACK_DYNAMIC_INDEX_START	16
-#define HPACK_DYNAMIC_INDEX_NUMBER	10 /* so max is 16*2^10=4096 */
-static wuy_pool_t *hpack_pools_index[HPACK_DYNAMIC_INDEX_NUMBER];
-static void hpack_dynamic_index_pool_init(void)
-{
-	int i;
-	size_t psize = HPACK_DYNAMIC_INDEX_START * sizeof(hpack_dynamic_entry_t *);
-	for (i = 0; i < HPACK_DYNAMIC_INDEX_NUMBER; i++) {
-		hpack_pools_index[i] = wuy_pool_new(psize);
-		psize *= 2;
-	}
-}
-static void *hpack_dynamic_index_alloc(int isize)
-{
-	int i;
-	isize *= sizeof(hpack_dynamic_entry_t *);
-	size_t psize = HPACK_DYNAMIC_INDEX_START * sizeof(hpack_dynamic_entry_t *);
-	for (i = 0; i < HPACK_DYNAMIC_INDEX_NUMBER; i++) {
-		if (psize == isize) {
-			return wuy_pool_alloc(hpack_pools_index[i]);
-		}
-		psize *= 2;
-	}
-	return NULL;
-}
-static void hpack_dynamic_index_free(void *p)
-{
-	wuy_pool_free(p);
-}
-
-/* OK, the shared dictory and memory utils ends. The following is about hpack. */
-
+/* OK, the shared dictory ends. The following is about hpack. */
 static int hpack_dynamic_index_increase(hpack_t *hpack)
 {
-	if (hpack->indexs == NULL) {
-		hpack->index_size = HPACK_DYNAMIC_INDEX_START;
-		hpack->indexs = hpack_dynamic_index_alloc(hpack->index_size);
+	if (hpack->indexs == NULL || hpack->index_used == hpack->index_size) {
+		hpack->index_size *= 2;
+		hpack->indexs = realloc(hpack->indexs,
+				sizeof(hpack_dynamic_entry_t *) * hpack->index_size);
 		if (hpack->indexs == NULL) {
 			return HPERR_NOMEM;
 		}
-
-	} else if (hpack->index_used == hpack->index_size) {
-		/* double indexs if full */
-		void *new_indexs = hpack_dynamic_index_alloc(hpack->index_size * 2);
-		if (new_indexs == NULL) {
-			return HPERR_NOMEM;
-		}
-
-		memcpy(new_indexs, hpack->indexs, hpack->index_size * sizeof(hpack_dynamic_entry_t *));
-		hpack->index_size *= 2;
-		hpack_dynamic_index_free(hpack->indexs);
-		hpack->indexs = new_indexs;
 	}
 
 	hpack->index_used++;
@@ -205,7 +161,7 @@ static int hpack_dynamic_table_size_adjust(hpack_t *hpack, int length)
 	if (n != 0) {
 		hpack->index_used -= n;
 		memmove(hpack->indexs, hpack->indexs + n,
-				sizeof(hpack_dynamic_entry_t) * hpack->index_used);
+				sizeof(hpack_dynamic_entry_t *) * hpack->index_used);
 	}
 
 	return 0;
@@ -275,17 +231,16 @@ bool hpack_dynamic_decode(hpack_t *hpack, int index,
 }
 
 
-static wuy_pool_t *hpack_pool_hpack;
-
 hpack_t *hpack_new(int buf_max)
 {
-	hpack_t *hpack = wuy_pool_alloc(hpack_pool_hpack);
+	hpack_t *hpack = malloc(sizeof(hpack_t));
 	if (hpack == NULL) {
 		return NULL;
 	}
 
 	bzero(hpack, sizeof(hpack_t));
 	hpack->buf_max = buf_max;
+	hpack->index_size = 16;
 	return hpack;
 }
 
@@ -295,16 +250,12 @@ void hpack_free(hpack_t *hpack)
 	for (i = 0; i < hpack->index_used; i++) {
 		hpack_dynamic_entry_free(hpack->indexs[i]);
 	}
-	hpack_dynamic_index_free(hpack->indexs);
-	wuy_pool_free(hpack);
+	free(hpack->indexs);
+	free(hpack);
 }
 
 void hpack_dynamic_init(bool shared)
 {
-	hpack_dynamic_index_pool_init();
-
-	hpack_pool_hpack = wuy_pool_new_type(hpack_t);
-
 	if (shared) {
 		hpack_dynamic_enable_share();
 	}
