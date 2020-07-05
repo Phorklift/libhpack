@@ -6,7 +6,6 @@
 void hpack_library_init(bool dynamic_share)
 {
 	hpack_static_init();
-	hpack_dynamic_init(dynamic_share);
 }
 
 const char *hpack_strerror(int errcode)
