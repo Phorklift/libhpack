@@ -3,11 +3,6 @@
 
 #include "hpack.h"
 
-void hpack_library_init(bool dynamic_share)
-{
-	hpack_static_init();
-}
-
 const char *hpack_strerror(int errcode)
 {
 	switch (errcode) {

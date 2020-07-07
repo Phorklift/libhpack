@@ -8,6 +8,4 @@ bool hpack_static_decode(int index, const char **name_str, int *name_len,
 
 int hpack_static_encode_name(const char *name_str, int name_len);
 
-void hpack_static_init(void);
-
 #endif
