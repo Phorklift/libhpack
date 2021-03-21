@@ -3,17 +3,17 @@
 
 #include "hpack_static.h"
 
-typedef struct {
+struct hpack_static_entry {
 	const char	*name_str;
 	int		name_len;
 	const char	*value_str;
 	int		value_len;
-} hpack_static_entry_t;
+};
 
 #define STE_NAME_ONLY(name)		{ name, sizeof(name)-1 }
 #define STE_NAME_VALUE(name, value)	{ name, sizeof(name)-1, value, sizeof(value)-1 }
 
-static hpack_static_entry_t hpack_static_table[] =
+static struct hpack_static_entry hpack_static_table[] =
 {
 	STE_NAME_ONLY(""),
 	STE_NAME_ONLY(":authority"),
@@ -79,7 +79,7 @@ static hpack_static_entry_t hpack_static_table[] =
 	STE_NAME_ONLY("www-authenticate"),
 };
 
-#define HPACK_STATIC_TABLE_SIZE (sizeof(hpack_static_table) / sizeof(hpack_static_entry_t))
+#define HPACK_STATIC_TABLE_SIZE (sizeof(hpack_static_table) / sizeof(struct hpack_static_entry))
 
 bool hpack_static_decode(int index, const char **name_str, int *name_len,
 		const char **value_str, int *value_len)
@@ -88,7 +88,7 @@ bool hpack_static_decode(int index, const char **name_str, int *name_len,
 		return false;
 	}
 
-	hpack_static_entry_t *se = &hpack_static_table[index];
+	struct hpack_static_entry *se = &hpack_static_table[index];
 	*name_str = se->name_str;
 	*name_len = se->name_len;
 	if (value_str != NULL) {
@@ -118,5 +118,9 @@ int hpack_static_encode_name(const char *name_str, int name_len)
 {
 	int hash = hpack_static_hash(name_str, name_len);
 	int index = hpack_static_hash_buckets[hash];
-	return index == 0 ? -1 : index;
+	if (index == 0) {
+		return -1;
+	}
+	struct hpack_static_entry *e = &hpack_static_table[index];
+	return name_len == e->name_len && memcmp(e->name_str, name_str, name_len) == 0 ? index : -1;
 }

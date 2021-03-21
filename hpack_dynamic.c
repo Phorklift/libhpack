@@ -8,11 +8,11 @@
 #define HPACK_DYNAMIC_EXTRA_SIZE	32	/* see RFC 7541 Section 4.1 */
 #define HPACK_DYNAMIC_INDEX_BEGIN	61	/* static table size */
 
-typedef struct {
+struct hpack_dynamic_entry {
 	short		name_len;
 	short		value_len;
 	char		data[0];
-} hpack_dynamic_entry_t;
+};
 
 struct hpack_s {
 	int		buf_max;
@@ -21,7 +21,7 @@ struct hpack_s {
 	int		index_size;
 	int		index_used;
 
-	hpack_dynamic_entry_t	**indexs;
+	struct hpack_dynamic_entry **indexs;
 };
 
 static int hpack_dynamic_index_increase(hpack_t *hpack)
@@ -29,7 +29,7 @@ static int hpack_dynamic_index_increase(hpack_t *hpack)
 	if (hpack->indexs == NULL || hpack->index_used == hpack->index_size) {
 		hpack->index_size *= 2;
 		hpack->indexs = realloc(hpack->indexs,
-				sizeof(hpack_dynamic_entry_t *) * hpack->index_size);
+				sizeof(struct hpack_dynamic_entry *) * hpack->index_size);
 		if (hpack->indexs == NULL) {
 			return HPERR_NOMEM;
 		}
@@ -47,7 +47,7 @@ static int hpack_dynamic_table_size_adjust(hpack_t *hpack, int length)
 
 	int n = 0;
 	while (hpack->buf_used + length > hpack->buf_max) {
-		hpack_dynamic_entry_t *de = hpack->indexs[n++];
+		struct hpack_dynamic_entry *de = hpack->indexs[n++];
 		hpack->buf_used -= de->name_len + de->value_len + HPACK_DYNAMIC_EXTRA_SIZE;
 		free(de);
 	}
@@ -55,7 +55,7 @@ static int hpack_dynamic_table_size_adjust(hpack_t *hpack, int length)
 	if (n != 0) {
 		hpack->index_used -= n;
 		memmove(hpack->indexs, hpack->indexs + n,
-				sizeof(hpack_dynamic_entry_t *) * hpack->index_used);
+				sizeof(struct hpack_dynamic_entry *) * hpack->index_used);
 	}
 
 	return 0;
@@ -86,7 +86,7 @@ int hpack_dynamic_add(hpack_t *hpack, const char *name_str, int name_len,
 	}
 
 	/* add entry */
-	hpack_dynamic_entry_t *de = malloc(sizeof(hpack_dynamic_entry_t)
+	struct hpack_dynamic_entry *de = malloc(sizeof(struct hpack_dynamic_entry)
 			+ name_len + value_len);
 	if (de == NULL) {
 		return HPERR_NOMEM;
@@ -109,7 +109,7 @@ bool hpack_dynamic_decode(hpack_t *hpack, int index,
 		return false;
 	}
 
-	hpack_dynamic_entry_t *de = hpack->indexs[hpack->index_used + HPACK_DYNAMIC_INDEX_BEGIN - index];
+	struct hpack_dynamic_entry *de = hpack->indexs[hpack->index_used + HPACK_DYNAMIC_INDEX_BEGIN - index];
 	*name_str = de->data;
 	*name_len = de->name_len;
 	if (value_str != NULL) {
